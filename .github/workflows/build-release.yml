@@ -1,0 +1,137 @@
+name: Build and Release Tool
+
+on:
+  push:
+    tags:
+      - '*/v*'
+
+jobs:
+  build:
+    name: Build for ${{ matrix.os }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          # Linux builds
+          - os: linux
+            arch: amd64
+            output_suffix: linux-amd64
+          - os: linux
+            arch: arm64
+            output_suffix: linux-arm64
+          # Windows builds
+          - os: windows
+            arch: amd64
+            output_suffix: windows-amd64.exe
+          # macOS builds
+          - os: darwin
+            arch: amd64
+            output_suffix: darwin-amd64
+          - os: darwin
+            arch: arm64
+            output_suffix: darwin-arm64
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.25'
+
+      - name: Extract project name and version
+        id: extract
+        run: |
+          # Extract project name from tag (e.g., "portscanner/v1.0.0" -> "portscanner")
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+          PROJECT_NAME="${TAG_NAME%%/*}"
+          VERSION="${TAG_NAME#*/}"
+
+          echo "project=$PROJECT_NAME" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=$TAG_NAME" >> $GITHUB_OUTPUT
+
+      - name: Build for ${{ matrix.os }} ${{ matrix.arch }}
+        run: |
+          cd ${{ steps.extract.outputs.project }}
+          OUTPUT_NAME="${{ steps.extract.outputs.project }}-${{ matrix.output_suffix }}"
+          GOOS=${{ matrix.os }} GOARCH=${{ matrix.arch }} go build -o ../bin/$OUTPUT_NAME main.go
+        env:
+          CGO_ENABLED: 0
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ steps.extract.outputs.project }}-${{ matrix.output_suffix }}
+          path: bin/${{ steps.extract.outputs.project }}-${{ matrix.output_suffix }}
+          retention-days: 1
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Extract project name and version
+        id: extract
+        run: |
+          TAG_NAME="${GITHUB_REF#refs/tags/}"
+          PROJECT_NAME="${TAG_NAME%%/*}"
+          VERSION="${TAG_NAME#*/}"
+
+          echo "project=$PROJECT_NAME" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=$TAG_NAME" >> $GITHUB_OUTPUT
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: bin
+
+      - name: Prepare release files
+        run: |
+          mkdir -p release
+          PROJECT="${{ steps.extract.outputs.project }}"
+          find bin -name "$PROJECT-*" -type f | while read file; do
+            cp "$file" "release/$(basename "$file")"
+          done
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: "${{ steps.extract.outputs.project }} ${{ steps.extract.outputs.version }}"
+          tag_name: ${{ steps.extract.outputs.tag }}
+          files: release/*
+          body: |
+            # ${{ steps.extract.outputs.project }} ${{ steps.extract.outputs.version }}
+
+            ## 📥 Descargas
+
+            Elige el archivo según tu sistema operativo:
+
+            - **Windows (64-bit)**: `${{ steps.extract.outputs.project }}-windows-amd64.exe`
+            - **macOS (Intel)**: `${{ steps.extract.outputs.project }}-darwin-amd64`
+            - **macOS (Apple Silicon)**: `${{ steps.extract.outputs.project }}-darwin-arm64`
+            - **Linux (64-bit)**: `${{ steps.extract.outputs.project }}-linux-amd64`
+            - **Linux (ARM)**: `${{ steps.extract.outputs.project }}-linux-arm64`
+
+            ## 🚀 Instalación rápida
+
+            ### Windows
+            Descarga el `.exe` y haz doble clic. ¡Listo!
+
+            ### macOS/Linux
+            ```bash
+            chmod +x ${{ steps.extract.outputs.project }}-*
+            ./${{ steps.extract.outputs.project }}-*
+            ```
+
+            Para más detalles, consulta el [README](https://github.com/ValdiviaDeveloper/go_scripts/blob/main/${{ steps.extract.outputs.project }}/README.md)
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,3 +1,3 @@
-module github.comValdiviaDeveloper/go_scripts/portscanner
+module github.com/ValdiviaDeveloper/go_scripts/portscanner
 
 go 1.25.4
