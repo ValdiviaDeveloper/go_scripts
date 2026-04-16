@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 
@@ -96,6 +97,11 @@ func main() {
 		manejarDesencriptacion(scanner)
 	default:
 		fmt.Printf("%s[!] Opción no válida%s\n", colorRed, colorReset)
+	}
+
+	if runtime.GOOS == "windows" {
+		fmt.Printf("%sPresiona Enter para cerrar...%s", colorDim, colorReset)
+		bufio.NewReader(os.Stdin).ReadString('\n')
 	}
 }
 
