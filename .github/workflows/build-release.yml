@@ -1,5 +1,8 @@
 name: Build and Release Tool
 
+permissions:
+  contents: write
+
 on:
   push:
     tags:
@@ -106,6 +109,7 @@ jobs:
           name: "${{ steps.extract.outputs.project }} ${{ steps.extract.outputs.version }}"
           tag_name: ${{ steps.extract.outputs.tag }}
           files: release/*
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           body: |
             # ${{ steps.extract.outputs.project }} ${{ steps.extract.outputs.version }}
 
@@ -133,5 +137,3 @@ jobs:
             Para más detalles, consulta el [README](https://github.com/ValdiviaDeveloper/go_scripts/blob/main/${{ steps.extract.outputs.project }}/README.md)
           draft: false
           prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
